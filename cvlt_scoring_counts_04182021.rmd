@@ -1,0 +1,1923 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Scoring CVLT-Food: (from Sara's grant)The goal of this project is to create a food version of the CVLT (CVLT-food) that can assess working memory and episodic memory for food and non-food specific stimuli.
+Such an instrument can be used both to measure contextual memory impairments accurately within this population and to determine if a given intervention results in improvements to memory. In addition, the
+controlled inclusion of food and non-food categories will allow researchers to determine if there are differential intervention effects on food and general stimuli. 
+
+#####
+PAC COGNITION
+#STEPS###
+1. Match column names with HW spreadsheet (or you can type in the variable names)
+2. Remove macro coded columns in the spreadsheet
+3. Check the number of columns match compared to HW spreadsheet
+```{r LOAD data}
+# 
+rm(list=ls())
+
+
+library(readxl)
+library(tidyverse)
+library(sjmisc)
+
+path.cvlt <- 'C:/Users/humbl/Documents/CHEAR/PACIFIC/CVLT validation/data/'
+
+#healthyweight
+cvlt.df<- data.frame(read_excel(paste0(path.cvlt, 
+                                 'HW_CVLTFood_Category_Scoring.xlsx'),
+                          sheet=3, 
+                          skip=3))
+#51 obs. Removed ID # 3510
+
+cvlt.df.2<- cvlt.df[!cvlt.df$ID %in% c(3510), ]
+
+#KeepList <- as.list(read.csv(file.choose(),header = F))
+#list of 271
+
+#cvlt.df.2 <- subset(cvlt.df, 
+#                    subset=cvlt.df$ID %in% KeepList)
+
+#segment data by trial 1 through trial 5
+
+cvlt.t1.fr<-cvlt.df.2[,c(1:21)] #14 obs. 21 variables
+cvlt.t2.fr<-cvlt.df.2[,c(1,22:41)]
+cvlt.t3.fr<-cvlt.df.2[,c(1,42:61)]
+cvlt.t4.fr<-cvlt.df.2[,c(1,62:81)]
+cvlt.t5.fr<-cvlt.df.2[,c(1,82:101)]
+# sample size should be 50 for all
+
+```
+
+
+
+```{r ListA keys}
+#make ListA key words: 
+ListA <- list(c("cfh", "brownies", "fries", "cookies", "chips"),
+              c("cfl",  "spinach", "onion", "celery", "cabbage"),
+              c("cn", "bookcase", "cabinet", "lamp", "desk"),
+              c("ct", "truck", "motorcycle", "taxi", "boat"), 
+              c("int", "IN", "IFH", "IFL", 
+                "intrusion_IFH", "intrusion_IFL", "intrusion_IN",
+                "food", "candy", "soda", "potato", 
+                "cheese", "cauliflower", "broccoli", 
+                "carrot", "beets", "raspberries","kale", "lettuce",
+                "dresser", "drill", "rat", "filing cabinet", "cupboard",
+                "trumpet", "balcony", "piano", "cellar", 
+                "attic", "shelves",
+                "car", "chair", "books", "cabin","fridge", "train", 
+                "notebook", "bus", "bouquet", "book", "shelf", "chairs", 
+                "bridge", "bookshelf", "couch", "table",
+                "hotdog", "taco", "pizza", "hamburger", #from cfh
+                "cucumber", "turnip", "corn", "radishes", #from cfl
+                "closet", "basement", "garage", "patio", "violin", 
+                "guitar", "clarinet", "saxophone"), #from cn),
+              c("rep", "r", "repeat"))
+
+
+```
+
+
+
+```{r trial 1}
+#check repeated words and trial # match! 
+
+#alternative tidy code
+cvlt.t1.fr.long<-cvlt.t1.fr%>%
+  gather(time, t, 2:21)%>%
+  arrange(ID)
+
+#match with listA
+lapply(ListA, function(x) {
+  cvlt.t1.fr.long$t1r[cvlt.t1.fr.long$t %in% x] <<- x[[1]]})
+
+#frequency and types of each variable
+table(cvlt.t1.fr.long$t1r)
+#cfh cfl  cn  ct int 
+# 72 111  70  97  21 
+
+#locate duplicated words
+cvlt.t1.fr.long2<- cvlt.t1.fr.long %>%
+  group_by(ID,t) %>%
+  mutate(t.dup = ifelse(duplicated(t) | duplicated(t, fromLast = F),'r', 'c'))%>%
+  mutate(t1r.dup= paste0(t1r, t.dup, sep=" "))%>%
+  mutate(trial1 = sjmisc::rec(t1r.dup, rec="cfhc =cfh;
+                              cfhr, cflr, cnr, ctr=r; cflc=cfl;
+                              cnc=cn; ctc=ct; intc, intr=int"))
+
+table(cvlt.t1.fr.long2$trial1)
+#-Inf  cfh  cfl   cn   ct  int    r 
+# 629   70  106   69   95   21   10
+
+cvlt.t1.fr.count<- cvlt.t1.fr.long2%>%
+  group_by(ID, trial1) %>% 
+  summarize(trial1_n = n())%>% #count
+  left_join(cvlt.t1.fr, by=c("ID"))%>%
+  spread(trial1, trial1_n)%>%
+  select("ID", 
+         "cfh", "cfl", "cn", "ct", 
+         "r", 
+         "int"
+         )%>%
+  rename("ID"="ID", 
+         "trial1_cfh" = "cfh",
+         "trial1_cfl"="cfl", 
+         "trial1_cn"="cn", 
+         "trial1_ct"="ct",
+         "trial1_repeat"="r", 
+         "trial1_intrusion"="int"
+         )
+```
+
+
+
+```{r}
+#trial 2
+cvlt.t2.fr.long<-reshape(data=cvlt.t2.fr,
+                   varying=c(2:21),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.t2.fr.long$t2r[cvlt.t2.fr.long$t %in% x] <<- x[[1]]
+})
+
+table(cvlt.t2.fr.long$t2r)
+#cfh cfl  cn  ct int 
+#130 147 135 144  18 
+
+cvlt.t2.fr.long2<- cvlt.t2.fr.long %>%
+  group_by(ID,t) %>%
+  mutate(t.dup = ifelse(duplicated(t) | duplicated(t, fromLast = F),'r', 'c'))%>%
+  mutate(t2r.dup= paste0(t2r, t.dup, sep=" "))%>%
+  mutate(trial2 = sjmisc::rec(t2r.dup, rec="cfhc =cfh;
+                              cfhr, cnr, cflr, ctr=r; cflc=cfl;
+                              cnc=cn; ctc=ct; intc, intr=int"))
+
+cvlt.t2.fr.count<- cvlt.t2.fr.long2%>%
+  group_by(ID, trial2) %>% 
+  summarize(trial2_n = n())%>%
+  left_join(cvlt.t2.fr, by=c("ID"))%>%
+  spread(trial2, trial2_n)%>%
+  select("ID", "cfh", "cfl", "cn","ct", "r", "int")%>%
+  rename("ID"="ID", "trial2_cfh" = "cfh",
+         "trial2_cfl"="cfl", 
+         "trial2_cn"="cn",
+         "trial2_ct"="ct",
+         "trial2_repeat"="r", 
+         "trial2_intrusion"="int")
+```
+
+
+```{r trial 3}
+# trial 3
+cvlt.t3.fr.long<-reshape(data=cvlt.t3.fr,
+                   varying=c(2:21),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.t3.fr.long$t3r[cvlt.t3.fr.long$t %in% x] <<- x[[1]]
+})
+
+
+cvlt.t3.fr.long2<- cvlt.t3.fr.long %>%
+  group_by(ID,t) %>%
+  mutate(t.dup = ifelse(duplicated(t) | duplicated(t, fromLast = F),'r', 'c'))%>%
+  mutate(t3r.dup= paste0(t3r, t.dup, sep=" "))%>%
+  mutate(trial3 = sjmisc::rec(t3r.dup, rec="cfhc =cfh;
+                              cfhr, cflr, cnr, ctr=r; cflc=cfl;
+                              cnc=cn; ctc=ct; intc, intr=int"))
+
+
+cvlt.t3.fr.count<- cvlt.t3.fr.long2%>%
+  group_by(ID, trial3) %>% 
+  summarize(trial3_n = n())%>%
+  left_join(cvlt.t3.fr, by=c("ID"))%>%
+  spread(trial3, trial3_n)%>%
+  select("ID", "cfh", "cfl", "cn", "ct", "r", "int")%>%
+  rename("ID"="ID", "trial3_cfh" = "cfh",
+         "trial3_cfl"="cfl", 
+         "trial3_cn"="cn",
+         "trial3_ct"="ct",
+         "trial3_repeat"="r", 
+         "trial3_intrusion"="int")
+```
+
+
+```{r trial 4}
+#trial 4
+cvlt.t4.fr.long<-reshape(data=cvlt.t4.fr,
+                   varying=c(2:21),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.t4.fr.long$t4r[cvlt.t4.fr.long$t %in% x] <<- x[[1]]})
+
+cvlt.t4.fr.long2<- cvlt.t4.fr.long %>%
+  group_by(ID,t) %>%
+  mutate(t.dup = ifelse(duplicated(t) | duplicated(t, fromLast = F),'r', 'c'))%>%
+  mutate(t4r.dup= paste0(t4r, t.dup, sep=" "))%>%
+  mutate(trial4 = sjmisc::rec(t4r.dup, rec="cfhc =cfh;
+                              cfhr, clfr,ctr, cnr=r; cflc=cfl; 
+                              cnc=cn; ctc=ct; intc, intr=int"))
+
+cvlt.t4.fr.count<- cvlt.t4.fr.long2%>%
+  group_by(ID, trial4) %>% 
+  summarize(trial4_n = n())%>%
+  left_join(cvlt.t4.fr, by=c("ID"))%>%
+  spread(trial4, trial4_n)%>%
+  select("ID", "cfh", "cfl", "cn", "ct", "r", "int"
+         )%>%
+  rename("ID"="ID", "trial4_cfh" = "cfh",
+         "trial4_cfl"="cfl", 
+         "trial4_cn"="cn",
+         "trial4_ct"="ct",
+         "trial4_repeat"="r", 
+         "trial4_intrusion"="int")
+```
+
+
+```{r trial 5}
+#trial 5
+cvlt.t5.fr.long<-reshape(data=cvlt.t5.fr,
+                   varying=c(2:21),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.t5.fr.long$t5r[cvlt.t5.fr.long$t %in% x] <<- x[[1]]})
+
+cvlt.t5.fr.long2<- cvlt.t5.fr.long %>%
+  group_by(ID,t) %>%
+  mutate(t.dup = ifelse(duplicated(t) | duplicated(t, fromLast = F),'r', 'c'))%>%
+  mutate(t5r.dup= paste0(t5r, t.dup, sep=" "))%>%
+  mutate(trial5 = sjmisc::rec(t5r.dup, rec="cfhc =cfh;
+                              cfhr, cflr,ctr, cnr=r; cflc=cfl;
+                              cnc=cn; ctc=ct; intc, intr=int"))
+
+cvlt.t5.fr.count<- cvlt.t5.fr.long2%>%
+  group_by(ID, trial5) %>% 
+  summarize(trial5_n = n())%>%
+  left_join(cvlt.t5.fr, by=c("ID"))%>%
+  spread(trial5, trial5_n)%>%
+  select("ID", "cfh", "cfl", "cn", "ct", "r", "int"
+         )%>%
+  rename("ID"="ID", "trial5_cfh" = "cfh",
+         "trial5_cfl"="cfl", 
+         "trial5_cn"="cn", 
+         "trial5_ct"="ct",
+         "trial5_repeat"="r", 
+         "trial5_intrusion"="int"
+         )
+```
+
+
+```{r combining trials 1-5}
+cvlt.t1_5.free.recall <- do.call("cbind", list(cvlt.t1.fr.count,
+                                  cvlt.t2.fr.count, 
+                                  cvlt.t3.fr.count, 
+                                  cvlt.t4.fr.count,
+                                  cvlt.t5.fr.count))
+#remove unnecessary duplicate variables
+cvlt.t1_5.free.recall.full<- cvlt.t1_5.free.recall[,!names(cvlt.t1_5.free.recall)%in% c("ID...8", "ID...15", "ID...22", "ID...29")]
+
+cvlt.t1_5.free.recall.full[is.na(cvlt.t1_5.free.recall.full)] <- 0
+
+psych::describe(cvlt.t1_5.free.recall.full)
+
+#save file 
+#write.csv(cvlt.t1_5.free.recall.full, file="fit_trial1_5_count.csv", row.names = F)
+
+```
+
+ListB
+
+```{r ListB keywords}
+#make ListB key words
+#note: changes 06.25.20 - 'cm' for musical instrument added
+
+ListB <- list(c("cfh",  
+                "hotdog", "taco", "pizza", "hamburger"),
+              c("cfl",   
+                "cucumber", "turnip", "corn", "radishes"),
+              c("cn", 
+                "closet", "basement", "garage", "patio"),
+              c("cm", 
+                "violin", "guitar", "clarinet", "saxophone"), 
+              c("int", "IN", "IFH", "IFL",
+                "intrusion_IFH", "intrusion_IFL", "intrusion_IN",
+                "food", "candy", 
+                "soda", "potato", "cheese", "cauliflower", "broccoli", 
+                "carrot", "beets", "raspberries","kale", "lettuce",
+                "dresser", "drill", "rat", "filing cabinet", "cupboard",
+                "trumpet", "balcony", "piano", "cellar", 
+                "attic", "shelves",
+                "car", "chair", "books", "cabin","fridge", "train", 
+                "notebook", "bus", "bouquet", "book", "shelf", "chairs", 
+                "bridge", "bookshelf", "couch", "table",
+                "brownies", "fries", "cookies", "chips",#fromcfh
+                "spinach", "onion", "celery", "cabbage",#fromcfl
+                "bookcase", "cabinet", "lamp", "desk", "truck", 
+                "motorcycle", "taxi", "boat"#fromcn
+                ),
+              c("rep", "r", "repeat"))
+```
+
+
+```{r listB}
+cvlt.listB.fr<-cvlt.df.2[,c(1,102:121)]
+#must be 21 variables
+
+#listB free recall
+cvlt.listB.fr.long<-reshape(data=cvlt.listB.fr,
+                   varying=c(2:21),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListB, function(x) {
+  cvlt.listB.fr.long$listBr[cvlt.listB.fr.long$tBw %in% x] <<- x[[1]]
+})
+
+table(cvlt.listB.fr.long$listBr)
+#cfh cfl  cm  cn int 
+# 78  96 124  63   7 
+
+cvlt.listB.fr.long2<- cvlt.listB.fr.long %>%
+  group_by(ID,tBw) %>%
+  mutate(t.dup = ifelse(duplicated(tBw) | duplicated(tBw, fromLast = F),'r', 'c'))%>%
+  mutate(listBr.dup= paste0(listBr, t.dup, sep=" "))%>%
+  mutate(listB = sjmisc::rec(listBr.dup, rec="cfhc =cfh;
+                              cfhr,cflr,cnr, cmr=r; cflc=cfl;
+                              cnc=cn; cmc=cm; intc, intr=int"))
+
+cvlt.listB.fr.count<- cvlt.listB.fr.long2%>%
+  group_by(ID, listB) %>% 
+  summarize(listB_n = n())%>%
+  left_join(cvlt.listB.fr, by=c("ID"))%>%
+  spread(listB, listB_n)%>%
+  select("ID", "cfh", "cfl", "cn", "cm", "r", "int")%>%
+  rename("ID"="ID", "listB_cfh" = "cfh",
+         "listB_cfl"="cfl", 
+         "listB_cn"="cn", 
+         "listB_cm"="cm",
+         "listB_repeat"="r", 
+         "listB_intrusion"="int")
+
+
+
+```
+
+
+```{r merge data}
+names(cvlt.t1_5.free.recall.full)[1]<-"ID"
+
+cvlt.listAB.fr<- merge(cvlt.t1_5.free.recall.full, cvlt.listB.fr.count, by="ID")
+
+cvlt.listAB.fr[is.na(cvlt.listAB.fr)] <- 0
+
+psych::describe(cvlt.listAB.fr)
+
+#save file 
+#write.csv(cvlt.listAB.fr, file="fit_cvlt_count_listAB.csv", row.names = F)
+```
+
+
+Short-delay free recall: 
+when recall of listB is completed, participants will recall words from listA
+
+```{r short-delay immediate free recall}
+cvlt.sd.fr<-cvlt.df.2[,c(1,122:141)]
+#must be 21 variables
+
+#sd free recall
+cvlt.sd.fr.long<-reshape(data=cvlt.sd.fr,
+                   varying=c(2:21),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+#use listA
+lapply(ListA, function(x) {
+  cvlt.sd.fr.long$sdr[cvlt.sd.fr.long$sdfrw %in% x] <<- x[[1]]})
+
+cvlt.sd.fr.long2<- cvlt.sd.fr.long %>%
+  group_by(ID,sdfrw) %>%
+  mutate(t.dup = ifelse(duplicated(sdfrw) | duplicated(sdfrw, fromLast = F),'r', 'c'))%>%
+  mutate(sdr.dup= paste0(sdr, t.dup, sep=" "))%>%
+  mutate(sdfr = sjmisc::rec(sdr.dup, rec="cfhc =cfh;
+                              cfhr, cflr,ctr, cnr=r; cflc=cfl;
+                              cnc=cn; ctc=ct; intc, intr=int"))
+
+cvlt.sd.fr.count<- cvlt.sd.fr.long2%>%
+  group_by(ID, sdfr) %>% 
+  summarize(sd_n = n())%>%
+  left_join(cvlt.sd.fr, by=c("ID"))%>%
+  spread(sdfr, sd_n)%>%
+  select("ID", "cfh", "cfl", "cn", "ct", "r", "int")%>%
+  rename("ID"="ID", 
+         "sdfr_cfh" = "cfh",
+         "sdfr_cfl"="cfl", 
+         "sdfr_cn"="cn",
+         "sdfr_ct"="ct",
+         "sdfr_repeat"="r", 
+         "sdfr_intrusion"="int"
+         )
+
+cvlt.sd.fr.count[is.na(cvlt.sd.fr.count)] <- 0
+
+psych::describe(cvlt.sd.fr.count)
+```
+
+
+```{r merge short delay data}
+cvlt.listAB_sd.fr<- merge(cvlt.listAB.fr, cvlt.sd.fr.count, by="ID")
+
+cvlt.listAB_sd.fr[is.na(cvlt.listAB_sd.fr)] <- 0
+
+#save file 
+#write.csv(cvlt.listAB_sd.fr, file="fit_cvlt_count_listAB_sdfr.csv", row.names = F)
+```
+
+
+```{r short-delay cued netural}
+#short delay cued neutral
+cvlt.sd.cue.neu.cn<-cvlt.df.2[,c(1,142:147)]
+cvlt.sd.cue.neu.ct<-cvlt.df.2[,c(1,152:157)]
+
+#short-delay cued neutral (use listA)
+cvlt.sd.cue.neu.cn.long<-reshape(data=cvlt.sd.cue.neu.cn,
+                   varying=c(2:7),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.sd.cue.neu.cn.long$sd.cue.neu.cnr[cvlt.sd.cue.neu.cn.long$sdnw %in% x] <<- x[[1]]})
+
+table(cvlt.sd.cue.neu.cn.long$sd.cue.neu.cnr)
+# cn  int 
+#161   9
+
+cvlt.sd.cue.neu.cn.long2<- cvlt.sd.cue.neu.cn.long %>%
+  group_by(ID,sdnw) %>%
+  mutate(t.dup = ifelse(duplicated(sdnw) | duplicated(sdnw, fromLast = F),'r', 'c'))%>%
+  mutate(sd.cue.neu.cnr.dup= paste0(sd.cue.neu.cnr, t.dup, sep=" "))%>%
+  mutate(sd.cue.neu.cn = sjmisc::rec(sd.cue.neu.cnr.dup, rec="cnc =cn;
+                              cfhr, cflr, ctr, cnr=r; 
+                              cflc, cfhc, ctc, intc, intr=int"))
+
+table(cvlt.sd.cue.neu.cn.long2$sd.cue.neu.cn)
+# cnc  intc   NAc   NAr  
+#  161     9    50    80 
+# no repetition
+
+
+cvlt.sd.cue.neu.cn.count<- cvlt.sd.cue.neu.cn.long2%>%
+  group_by(ID, sd.cue.neu.cn) %>% 
+  summarize(sd.cue.neu.cn_n = n())%>%
+  left_join(cvlt.sd.cue.neu.cn, by=c("ID"))%>%
+  spread(sd.cue.neu.cn, sd.cue.neu.cn_n)%>%
+  mutate(r=0)%>%###<- disable this code if there are reptitions
+  select("ID", 
+         "cn", 
+         "r",
+         "int" )%>%
+  rename("ID"="ID",  
+         "sd.cue.cn"="cn",
+         "sd.cue.cn_repeat" ="r",
+         "sd.cue.cn_intrusion"="int")
+
+#describe
+cvlt.sd.cue.neu.cn.count[is.na(cvlt.sd.cue.neu.cn.count)] <- 0
+psych::describe(cvlt.sd.cue.neu.cn.count)
+```
+
+
+```{r short-delay cued netural}
+### transportation
+#short-delay cued neutral (use listA)
+cvlt.sd.cue.neu.ct.long<-reshape(data=cvlt.sd.cue.neu.ct,
+                   varying=c(2:7),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.sd.cue.neu.ct.long$sd.cue.neu.ctr[cvlt.sd.cue.neu.ct.long$sdnw %in% x] <<- x[[1]]})
+
+table(cvlt.sd.cue.neu.ct.long$sd.cue.neu.ctr)
+# ct int 
+#178   3
+
+cvlt.sd.cue.neu.ct.long2<- cvlt.sd.cue.neu.ct.long %>%
+  group_by(ID,sdnw) %>%
+  mutate(t.dup = ifelse(duplicated(sdnw) | duplicated(sdnw, fromLast = F),'r', 'c'))%>%
+  mutate(sd.cue.neu.ctr.dup= paste0(sd.cue.neu.ctr, t.dup, sep=" "))%>%
+  mutate(sd.cue.neu.ct = sjmisc::rec(sd.cue.neu.ctr.dup, rec="ctc =ct;
+                              cfhr, cflr, ctr, ctr=r; 
+                              cflc, cfhc, cnc, intc, intr=int"))
+
+table(cvlt.sd.cue.neu.ct.long2$sd.cue.neu.ct)
+#-Inf   ct  int    r 
+# 116  151    2    1  
+#########################################
+
+cvlt.sd.cue.neu.ct.count<- cvlt.sd.cue.neu.ct.long2%>%
+  group_by(ID, sd.cue.neu.ct) %>% 
+  summarize(sd.cue.neu.ct_n = n())%>%
+  left_join(cvlt.sd.cue.neu.ct, by=c("ID"))%>%
+  spread(sd.cue.neu.ct, sd.cue.neu.ct_n)%>%
+  mutate(r=0)%>%
+  select("ID", 
+         "ct", 
+         "r",
+         "int" )%>%
+  rename("ID"="ID",  
+         "sd.cue.ct"="ct",
+         "sd.cue.ct_repeat" ="r",
+         "sd.cue.ct_intrusion"="int")
+
+#describe
+cvlt.sd.cue.neu.ct.count[is.na(cvlt.sd.cue.neu.ct.count)] <- 0
+psych::describe(cvlt.sd.cue.neu.ct.count)
+
+
+```
+
+
+```{r short-delay cued food}
+###
+#short delay cued food
+cvlt.sd.cue.food.cfl<-cvlt.df.2[,c(1,158:163)]
+cvlt.sd.cue.food.cfh<-cvlt.df.2[,c(1,168:173)]
+
+#short-delay cued food (use listA)
+cvlt.sd.cue.food.cfl.long<-reshape(data=cvlt.sd.cue.food.cfl,
+                   varying=c(2:7),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.sd.cue.food.cfl.long$sd.cue.food.cflr[cvlt.sd.cue.food.cfl.long$sdfw %in% x] <<- x[[1]]})
+
+table(cvlt.sd.cue.food.cfl.long$sd.cue.food.cflr)
+#cfh cfl int 
+# 5 152  10
+#checkpoint - cfh is considered as intrusion for cfl cued recall
+
+cvlt.sd.cue.food.cfl.long2<- cvlt.sd.cue.food.cfl.long %>%
+  group_by(ID,sdfw) %>%
+  mutate(t.dup = ifelse(duplicated(sdfw) | duplicated(sdfw, fromLast = F),'r', 'c'))%>%
+  mutate(sd.cue.food.cflr.dup= paste0(sd.cue.food.cflr, t.dup, sep=" "))%>%
+  mutate(sd.cue.food = sjmisc::rec(sd.cue.food.cflr.dup, rec="cflc =cfl;
+                              cfhr, clfr,ctr, cnr=r; 
+                              cfhc, cnc, ctc, intc, intr=int"))
+
+table(cvlt.sd.cue.food.cfl.long2$sd.cue.food)
+#-Inf  cfl  int 
+# 133  152   15 
+ 
+cvlt.sd.cue.food.cfl.count<- cvlt.sd.cue.food.cfl.long2%>%
+  group_by(ID, sd.cue.food) %>% 
+  summarize(sd.cue.food_n = n())%>%
+  left_join(cvlt.sd.cue.food.cfl, by=c("ID"))%>%
+  spread(sd.cue.food, sd.cue.food_n)%>%
+  mutate(r=0)%>%
+  #mutate(int=0)%>%
+  select("ID", "cfl", "r", "int"
+         )%>%
+  rename("ID"="ID", 
+         "sd.cue.cfl"="cfl", 
+         "sd.cue.cfl_repeat"="r", 
+         "sd.cue.cfl_intrusion"="int"
+         )
+
+cvlt.sd.cue.food.cfl.count[is.na(cvlt.sd.cue.food.cfl.count)] <- 0
+psych::describe(cvlt.sd.cue.food.cfl.count)
+```
+
+
+```{r short-delay cued food}
+#cfh
+#short-delay cued food (use listA)
+cvlt.sd.cue.food.cfh.long<-reshape(data=cvlt.sd.cue.food.cfh,
+                   varying=c(2:7),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.sd.cue.food.cfh.long$sd.cue.food.cfhr[cvlt.sd.cue.food.cfh.long$sdfw %in% x] <<- x[[1]]})
+
+table(cvlt.sd.cue.food.cfh.long$sd.cue.food.cfhr)
+#cfh cfl 
+#161   7
+
+cvlt.sd.cue.food.cfh.long2<- cvlt.sd.cue.food.cfh.long %>%
+  group_by(ID,sdfw) %>%
+  mutate(t.dup = ifelse(duplicated(sdfw) | duplicated(sdfw, fromLast = F),'r', 'c'))%>%
+  mutate(sd.cue.food.cfhr.dup= paste0(sd.cue.food.cfhr, t.dup, sep=" "))%>%
+  mutate(sd.cue.food = sjmisc::rec(sd.cue.food.cfhr.dup, 
+                                   rec="cfhc =cfh; 
+                                   cfhr,cflr,ctr, cnr=r; 
+                                   cflc, cnc, ctc, intc, intr=int"))
+
+table(cvlt.sd.cue.food.cfh.long2$sd.cue.food.cfhr.dup)
+#cfhc  cflc   NAc   NAr  
+#  161     7    49    83 
+#cflc is considered as intrusion
+
+cvlt.sd.cue.food.cfh.count<- cvlt.sd.cue.food.cfh.long2%>%
+  group_by(ID, sd.cue.food) %>% 
+  summarize(sd.cue.food_n = n())%>%
+  left_join(cvlt.sd.cue.food.cfh, by=c("ID"))%>%
+  spread(sd.cue.food, sd.cue.food_n)%>%
+  mutate(r=0)%>%
+  select("ID", "cfh", "r", "int"
+         )%>%
+  rename("ID"="ID", 
+         "sd.cue.cfh" = "cfh",
+         "sd.cue.cfh_repeat"="r", 
+         "sd.cue.cfh_intrusion"="int"
+         )
+
+
+cvlt.sd.cue.food.cfh.count[is.na(cvlt.sd.cue.food.cfh.count)] <- 0
+psych::describe(cvlt.sd.cue.food.cfh.count)
+
+```
+
+
+```{r short-delay cued merge}
+######################
+
+cvlt.sd.cued.recall <- do.call("cbind", list(cvlt.sd.cue.neu.cn.count,
+                                  cvlt.sd.cue.neu.ct.count, 
+                                  cvlt.sd.cue.food.cfh.count, 
+                                  cvlt.sd.cue.food.cfl.count))
+
+#remove unnecessary duplicate variables
+cvlt.sd.cued.recall.full<- cvlt.sd.cued.recall[,!names(cvlt.sd.cued.recall)%in% c("ID...5", "ID...9", "ID...13")]
+
+names(cvlt.sd.cued.recall.full)[1]<-'ID'
+
+cvlt.listAB_sd <- merge(cvlt.listAB_sd.fr, cvlt.sd.cued.recall.full, by="ID")
+                    
+#save file 
+#write.csv(cvlt.listAB_sd, 
+#          file="fit_count_listAB_sd.csv", row.names = F)
+```
+
+#long delay free recall
+
+```{r}
+cvlt.ld.fr<-cvlt.df.2[,c(1,174:193)]
+#library(tidyverse)
+#ld free recall
+cvlt.ld.fr.long<-reshape(data=cvlt.ld.fr,
+                   varying=c(2:21),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.ld.fr.long$ldr[cvlt.ld.fr.long$ldfrw %in% x] <<- x[[1]]})
+
+table(cvlt.ld.fr.long$ldr)
+#cfh cfl  cn  ct int 
+#144 158 151 177  24 
+
+cvlt.ld.fr.long2<- cvlt.ld.fr.long %>%
+  group_by(ID,ldfrw) %>%
+  mutate(t.dup = ifelse(duplicated(ldfrw) | duplicated(ldfrw, fromLast = F),'r', 'c'))%>%
+  mutate(ldr.dup= paste0(ldr, t.dup, sep=" "))%>%
+  mutate(ldfr = sjmisc::rec(ldr.dup, rec="cfhc =cfh;
+                              cfhr, cflr,ctr, cnr=r; 
+                              cflc=cfl; cnc=cn; ctc=ct;  
+                              intc, intr=int"))
+
+cvlt.ld.fr.count<- cvlt.ld.fr.long2%>%
+  group_by(ID, ldfr) %>% 
+  summarize(ld_n = n())%>%
+  left_join(cvlt.ld.fr, by=c("ID"))%>%
+  spread(ldfr, ld_n)%>%
+  select("ID", "cfh", "cfl","ct", "cn", "r", "int")%>%
+  rename("ID"="ID", "ld_cfh" = "cfh",
+         "ldfr_cfl"="cfl", 
+         "ldfr_cn"="cn",
+         "ldfr_ct"="ct",
+         "ldfr_repeat"="r", 
+         "ldfr_intrusion"="int")
+
+cvlt.ld.fr.count[is.na(cvlt.ld.fr.count)] <- 0
+psych::describe(cvlt.ld.fr.count)
+
+cvlt.listAB_sd_ld.fr<- merge(cvlt.listAB_sd, cvlt.ld.fr.count, by="ID")
+
+#save file 
+#write.csv(cvlt.listAB_sd_ld.fr, file="base_cvlt_count_listAB_sd_ldfr.csv", row.names = F)
+```
+
+
+```{r long delay cued}
+cvlt.ld.cue.neu.cn<-cvlt.df.2[,c(1,194:201)]
+
+#long-delay cued neutral (use listA)
+cvlt.ld.cue.neu.cn.long<-reshape(data=cvlt.ld.cue.neu.cn,
+                   varying=c(2:9),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.ld.cue.neu.cn.long$ld.cue.neu.cnr[cvlt.ld.cue.neu.cn.long$ldfurw %in% x] <<- x[[1]]})
+
+table(cvlt.ld.cue.neu.cn.long$ld.cue.neu.cnr)
+# cn int 
+#161  14  
+
+cvlt.ld.cue.neu.cn.long2<- cvlt.ld.cue.neu.cn.long %>%
+  group_by(ID,ldfurw) %>%
+  mutate(t.dup = ifelse(duplicated(ldfurw) | duplicated(ldfurw, fromLast = F),'r', 'c'))%>%
+  mutate(ld.cue.neu.cnr.dup= paste0(ld.cue.neu.cnr, t.dup, sep=" "))%>%
+  mutate(ld.cue.neu.cn = sjmisc::rec(ld.cue.neu.cnr.dup, rec="cnc =cn;
+                              cfhr, cflr,ctr, cnr=r; 
+                              cflc, cfhc, ctc, intc, intr=int"))
+
+table(cvlt.ld.cue.neu.cn.long2$ld.cue.neu.cnr.dup)
+# no repetition
+   
+cvlt.ld.cue.neu.cn.count<- cvlt.ld.cue.neu.cn.long2%>%
+  group_by(ID, ld.cue.neu.cn) %>% 
+  summarize(ld.cue.neu.cn_n = n())%>%
+  left_join(cvlt.ld.cue.neu.cn, by=c("ID"))%>%
+  spread(ld.cue.neu.cn, ld.cue.neu.cn_n)%>%
+  mutate(r=0)%>%
+  select("ID", "cn",
+         "r", 
+         "int"
+         )%>%
+  rename("ID"="ID",  
+         "ld.cue.cn"="cn",
+         "ld.cue.cn_repeat"="r",
+         "ld.cue.cn_intrusion"="int"
+         )
+
+cvlt.ld.cue.neu.cn.count[is.na(cvlt.ld.cue.neu.cn.count)] <- 0
+psych::describe(cvlt.ld.cue.neu.cn.count)
+
+```
+
+
+```{r long delay cued veg}
+###
+#long delay cued veg
+cvlt.ld.cue.veg<-cvlt.df.2[,c(1,202:209)]
+
+#long-delay cued food (use listA)
+cvlt.ld.cue.veg.long<-reshape(data=cvlt.ld.cue.veg,
+                   varying=c(2:9),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.ld.cue.veg.long$ld.cue.vegr[cvlt.ld.cue.veg.long$ldvegw %in% x] <<- x[[1]]})
+
+table(cvlt.ld.cue.veg.long$ld.cue.vegr)
+#cfl int 
+#144  10 
+
+cvlt.ld.cue.veg.long2<- cvlt.ld.cue.veg.long %>%
+  group_by(ID,ldvegw) %>%
+  mutate(t.dup = ifelse(duplicated(ldvegw) | duplicated(ldvegw, fromLast = F),'r', 'c'))%>%
+  mutate(ld.cue.vegr.dup= paste0(ld.cue.vegr, t.dup, sep=" "))%>%
+  mutate(ld.cue.veg = sjmisc::rec(ld.cue.vegr.dup, rec="cflc =cfl;
+                              cfhr, cflr, ctr, cnr=r; 
+                              cfhc,ctc, cnc,intc, intr=int"))
+
+table(cvlt.ld.cue.veg.long2$ld.cue.veg)
+#-Inf  cfl  int    r 
+# 206  143   10    1   
+
+cvlt.ld.cue.veg.count<- cvlt.ld.cue.veg.long2%>%
+  group_by(ID, ld.cue.veg) %>% 
+  summarize(ld.cue.veg_n = n())%>%
+  left_join(cvlt.ld.cue.veg, by=c("ID"))%>%
+  spread(ld.cue.veg, ld.cue.veg_n)%>%
+  mutate(r=0)%>%
+  select("ID",  
+         "cfl", 
+         "r",
+         "int")%>%
+  rename("ID"="ID", 
+         "ld.cue.cfl"="cfl", 
+         "ld.cue.cfl_repeat"="r", 
+         "ld.cue.cfl_intrusion"="int")
+
+
+
+cvlt.ld.cue.veg.count[is.na(cvlt.ld.cue.veg.count)] <- 0
+psych::describe(cvlt.ld.cue.veg.count)
+```
+
+
+```{r long delay cued trv}
+#####
+#long delay cued trv
+cvlt.ld.cue.trv<-cvlt.df.2[,c(1,210:217)]
+
+#long-delay cued travel (use listA)
+cvlt.ld.cue.trv.long<-reshape(data=cvlt.ld.cue.trv,
+                   varying=c(2:9),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.ld.cue.trv.long$ld.cue.trvr[cvlt.ld.cue.trv.long$ldtraw %in% x] <<- x[[1]]})
+
+table(cvlt.ld.cue.trv.long$ld.cue.trvr)
+# ct int 
+
+cvlt.ld.cue.trv.long2<- cvlt.ld.cue.trv.long %>%
+  group_by(ID,ldtraw) %>%
+  mutate(t.dup = ifelse(duplicated(ldtraw) | duplicated(ldtraw, fromLast = F),'r', 'c'))%>%
+  mutate(ld.cue.trvr.dup= paste0(ld.cue.trvr, t.dup, sep=" "))%>%
+  mutate(ld.cue.trv = sjmisc::rec(ld.cue.trvr.dup, rec="ctc =ct;
+                              cfhr, cflr,ctr, cnr=r; 
+                              cfhc, cnc, cflc, intc, intr=int"))
+
+
+table(cvlt.ld.cue.trv.long2$ld.cue.trv)
+#-Inf   ct  int    r 
+# 194  157    6    3
+
+cvlt.ld.cue.trv.count<- cvlt.ld.cue.trv.long2%>%
+  group_by(ID, ld.cue.trv) %>% 
+  summarize(ld.cue.trv_n = n())%>%
+  left_join(cvlt.ld.cue.trv, by=c("ID"))%>%
+  spread(ld.cue.trv, ld.cue.trv_n)%>%
+  mutate(r=0)%>%
+  select("ID", 
+         "ct",
+         "r", 
+         "int"
+         )%>%
+  rename("ID"="ID", 
+         "ld.cue.ct"="ct", 
+         "ld.cue.ct_repeat"="r", 
+         "ld.cue.ct_intrusion"="int"
+         )
+
+cvlt.ld.cue.trv.count[is.na(cvlt.ld.cue.trv.count)] <- 0
+psych::describe(cvlt.ld.cue.trv.count)
+```
+
+
+```{r long delay cued snack}
+#####
+#long delay cued snack
+cvlt.ld.cue.sna<-cvlt.df.2[,c(1,218:225)]
+
+#long-delay cued snack (use listA)
+cvlt.ld.cue.sna.long<-reshape(data=cvlt.ld.cue.sna,
+                   varying=c(2:9),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+lapply(ListA, function(x) {
+  cvlt.ld.cue.sna.long$ld.cue.snar[cvlt.ld.cue.sna.long$ldsnaw %in% x] <<- x[[1]]
+})
+
+table(cvlt.ld.cue.sna.long$ld.cue.snar)
+# cfh int
+
+cvlt.ld.cue.sna.long2<- cvlt.ld.cue.sna.long %>%
+  group_by(ID,ldsnaw) %>%
+  mutate(t.dup = ifelse(duplicated(ldsnaw) | duplicated(ldsnaw, fromLast = F),'r', 'c'))%>%
+  mutate(ld.cue.snar.dup= paste0(ld.cue.snar, t.dup, sep=" "))%>%
+  mutate(ld.cue.sna = sjmisc::rec(ld.cue.snar.dup, rec="cfhc =cfh;
+                              cfhr, cflr, ctr, cnr=r; 
+                              cflc,cnc,ctc,intc, intr=int"))
+
+table(cvlt.ld.cue.sna.long2$ld.cue.sna)
+#-Inf  cfh  int    r 
+# 230  160    9    1 
+
+cvlt.ld.cue.sna.count<- cvlt.ld.cue.sna.long2%>%
+  group_by(ID, ld.cue.sna) %>% 
+  summarize(ld.cue.sna_n = n())%>%
+  left_join(cvlt.ld.cue.sna, by=c("ID"))%>%
+  spread(ld.cue.sna, ld.cue.sna_n)%>%
+ #mutate(r=0)%>%
+  select("ID", 
+         "cfh", 
+         "r", 
+         "int"
+         )%>%
+  rename("ID"="ID", 
+         "ld.cue.cfh" = "cfh",
+         "ld.cue.cfh_repeat"="r", 
+         "ld.cue.cfh_intrusion"="int"
+         )
+
+
+cvlt.ld.cue.sna.count[is.na(cvlt.ld.cue.sna.count)] <- 0
+psych::describe(cvlt.ld.cue.sna.count)
+```
+
+
+```{r long delay cued merge}
+######################
+cvlt.ld.cue1 <- do.call("cbind", list(cvlt.ld.cue.neu.cn.count,
+                                  cvlt.ld.cue.veg.count, 
+                                  cvlt.ld.cue.trv.count, 
+                                  cvlt.ld.cue.sna.count))
+
+cvlt.ld.cue<- cvlt.ld.cue1[,!names(cvlt.ld.cue1)%in% c("ID...5", "ID...9", "ID...13")]
+
+names(cvlt.ld.cue)[1]<-'ID'
+
+
+#merge
+cvlt.ld.fr.cue<- merge(cvlt.listAB_sd_ld.fr, cvlt.ld.cue, by="ID")
+
+cvlt.ld.fr.cue[is.na(cvlt.ld.fr.cue)] <- 0
+
+#save file 
+#write.csv(cvlt.ld.fr.cue, file="fit_cvlt_count_sd_ld.csv", row.names = F)
+```
+
+## recognition
+```{r recognition hits}
+#make a list for recognition hits
+
+recog.keys <- c("01N","02Y","03N", "04N", "05Y", "06N", "07N", "08Y", 
+               "09Y", "10N", "11N", "12N", "13N", "14Y", "15N", "16N", 
+               "17Y","18Y", "19N", "20N", "21N", "22Y", "23N", "24N", 
+               "25N", "26Y","27N", "28Y", "29N", "30Y", "31N", "32N", 
+               "33N", "34N", "35N","36Y", "37N", "38Y", "39Y", "40N", 
+               "41N", "42N", "43Y", "44N","45N", "46Y", "47N", "48N")
+
+
+df.keys <- data.frame(stringsAsFactors = FALSE,
+  time = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,
+           19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,
+           34,35,36,37,38,39,40,41,42,43,44,45,46,47,48),
+  keys = c("01N","02Y","03N", "04N", "05Y", "06N", "07N", "08Y", 
+               "09Y", "10N", "11N", "12N", "13N", "14Y", "15N", "16N", 
+               "17Y","18Y", "19N", "20N", "21N", "22Y", "23N", "24N", 
+               "25N", "26Y","27N", "28Y", "29N", "30Y", "31N", "32N", 
+               "33N", "34N", "35N","36Y", "37N", "38Y", "39Y", "40N", 
+               "41N", "42N", "43Y", "44N","45N", "46Y", "47N", "48N"))
+
+
+#df
+cvlt.recog<-cvlt.df.2[,c(1,226:273)]
+
+#change to long
+cvlt.recog.long<-reshape(data=cvlt.recog,
+                   varying=c(2:49),
+                   timevar ="time",
+                   idvar=c("ID"),
+                   direction="long",
+                   sep="")
+
+#merge with keys
+cvlt.recg.long2<- merge(cvlt.recog.long, df.keys, by="time")
+#concatenate variables
+cvlt.recg.long2$recog<- paste0(cvlt.recg.long2$keys,cvlt.recg.long2$ldrec)
+
+#list all possible combinations
+table(cvlt.recg.long2$recog)
+
+#update on recognition
+#YY= hit; sensitivity; sens
+#YN= miss
+#NY= false alarm; false positive; fpos
+#NN= correct rejection; specificity; spec
+#assume "NA" as "miss"; there is one participant with no response
+
+cvlt.recog.long3<- cvlt.recg.long2 %>%
+  group_by(ID) %>%
+  mutate(recog_keys = sjmisc::rec(recog, 
+  rec="
+  01NN=spec; 01NNA=miss; 01YN=miss; 01YY=hit; 01YNA=miss; 01NY=fp_un;
+  02NN=spec; 02NNA=miss; 02YN=miss; 02YY=hit; 02YNA=miss; 02NY=fp;
+  03NN=spec; 03NNA=miss; 03YN=miss; 03YY=hit; 03YNA=miss; 03NY=fp_bn;
+  04NN=spec; 04NNA=miss; 04YN=miss; 04YY=hit; 04YNA=miss; 04NY=fp_bsl;
+  05NN=spec; 05NNA=miss; 05YN=miss; 05YY=hit; 05YNA=miss; 05NY=fp;
+  06NN=spec; 06NNA=miss; 06YN=miss; 06YY=hit; 06YNA=miss; 06NY=fp_np;
+  07NN=spec; 07NNA=miss; 07YN=miss; 07YY=hit; 07YNA=miss; 07NY=fp_bn;
+  08NN=spec; 08NNA=miss; 08YN=miss; 08YY=hit; 08YNA=miss; 08NY=fp;
+  09NN=spec; 09NNA=miss; 09YN=miss; 09YY=hit; 09YNA=miss; 09NY=fp;
+  10NN=spec; 10NNA=miss; 10YN=miss; 10YY=hit; 10YNA=miss; 10NY=fp_un;
+  11NN=spec; 11NNA=miss; 11YN=miss; 11YY=hit; 11YNA=miss; 11NY=fp_np;
+  12NN=spec; 12NNA=miss; 12YN=miss; 12YY=hit; 12YNA=miss; 12NY=fp_bsh;
+  13NN=spec; 13NNA=miss; 13YN=miss; 13YY=hit; 13YNA=miss; 13NY=fp_bn;
+  14NN=spec; 14NNA=miss; 14YN=miss; 14YY=hit; 14YNA=miss; 14NY=fp;
+  15NN=spec; 15NNA=miss; 15YN=miss; 15YY=hit; 15YNA=miss; 15NY=fp_un;
+  16NN=spec; 16NNA=miss; 16YN=miss; 16YY=hit; 16YNA=miss; 16NY=fp_np;
+  17NN=spec; 17NNA=miss; 17YN=miss; 17YY=hit; 17YNA=miss; 17NY=fp;
+  18NN=spec; 18NNA=miss; 18YN=miss; 18YY=hit; 18YNA=miss; 18NY=fp;
+  19NN=spec; 19NNA=miss; 19YN=miss; 19YY=hit; 19YNA=miss; 19NY=fp_bsl;
+  20NN=spec; 20NNA=miss; 20YN=miss; 20YY=hit; 20YNA=miss; 20NY=fp_np;
+  21NN=spec; 21NNA=miss; 21YN=miss; 21YY=hit; 21YNA=miss; 21NY=fp_un;
+  22NN=spec; 22NNA=miss; 22YN=miss; 22YY=hit; 22YNA=miss; 22NY=fp;
+  23NN=spec; 23NNA=miss; 23YN=miss; 23YY=hit; 23YNA=miss; 23NY=fp_bsh;
+  24NN=spec; 24NNA=miss; 24YN=miss; 24YY=hit; 24YNA=miss; 24NY=fp_bn;
+  25NN=spec; 25NNA=miss; 25YN=miss; 25YY=hit; 25YNA=miss; 25NY=fp_np;
+  26NN=spec; 26NNA=miss; 26YN=miss; 26YY=hit; 26YNA=miss; 26NY=fp;
+  27NN=spec; 27NNA=miss; 27YN=miss; 27YY=hit; 27YNA=miss; 27NY=fp_un;
+  28NN=spec; 28NNA=miss; 28YN=miss; 28YY=hit; 28YNA=miss; 28NY=fp;
+  29NN=spec; 29NNA=miss; 29YN=miss; 29YY=hit; 29YNA=miss; 29NY=fp_bn;
+  30NN=spec; 30NNA=miss; 30YN=miss; 30YY=hit; 30YNA=miss; 30NY=fp;
+  31NN=spec; 31NNA=miss; 31YN=miss; 31YY=hit; 31YNA=miss; 31NY=fp_bsh;
+  32NN=spec; 32NNA=miss; 32YN=miss; 32YY=hit; 32YNA=miss; 32NY=fp_np;
+  33NN=spec; 33NNA=miss; 33YN=miss; 33YY=hit; 33YNA=miss; 33NY=fp_bsl;
+  34NN=spec; 34NNA=miss; 34YN=miss; 34YY=hit; 34YNA=miss; 34NY=fp_un;
+  35NN=spec; 35NNA=miss; 35YN=miss; 35YY=hit; 35YNA=miss; 35NY=fp_bn;
+  36NN=spec; 36NNA=miss; 36YN=miss; 36YY=hit; 36YNA=miss; 36NY=fp;
+  37NN=spec; 37NNA=miss; 37YN=miss; 37YY=hit; 37YNA=miss; 37NY=fp_bsl;
+  38NN=spec; 38NNA=miss; 38YN=miss; 38YY=hit; 38YNA=miss; 38NY=fp;
+  39NN=spec; 39NNA=miss; 39YN=miss; 39YY=hit; 39YNA=miss; 39NY=fp;
+  40NN=spec; 40NNA=miss; 40YN=miss; 40YY=hit; 40YNA=miss; 40NY=fp_un;
+  41NN=spec; 41NNA=miss; 41YN=miss; 41YY=hit; 41YNA=miss; 41NY=fp_un;
+  42NN=spec; 42NNA=miss; 42YN=miss; 42YY=hit; 42YNA=miss; 42NY=fp_bn;
+  43NN=spec; 43NNA=miss; 43YN=miss; 43YY=hit; 43YNA=miss; 43NY=fp;
+  44NN=spec; 44NNA=miss; 44YN=miss; 44YY=hit; 44YNA=miss; 44NY=fp_bsh;
+  45NN=spec; 45NNA=miss; 45YN=miss; 45YY=hit; 45YNA=miss; 45NY=fp_np;
+  46NN=spec; 46NNA=miss; 46YN=miss; 46YY=hit; 46YNA=miss; 46NY=fp;
+  47NN=spec; 47NNA=miss; 47YN=miss; 47YY=hit; 47YNA=miss; 47NY=fp_np;
+  48NN=spec; 48NNA=miss; 48YN=miss; 48YY=hit; 48YNA=miss; 48NY=fp_bn"))
+
+
+table(cvlt.recog.long3$recog_keys)
+# fp_bn fp_bsh fp_bsl  fp_np  fp_un    hit   miss   spec 
+#    10     12     14     37      1    747     85   1494
+
+
+cvlt.recog.count<- cvlt.recog.long3%>%
+  group_by(ID, recog_keys) %>% 
+  summarize(recog_keys_n = n())%>%
+  spread(recog_keys, recog_keys_n)%>%
+  select("ID", 
+         "fp_bn", "fp_bsh", "fp_bsl", 
+         "fp_np", "fp_un", "hit",
+         "miss", "spec")%>%
+  rename("ID"="ID",
+         "fp_nonshared" = "fp_bn",
+         "fp_shared_h" = "fp_bsh",
+         "fp_shared_l" = "fp_bsl",
+         "fp_neither_p" = "fp_np",
+         "fp_neither_n" = "fp_un",
+         "miss" = "miss",
+         "hit" ="hit",
+         "correct_rejection"="spec")
+
+#replace NA to zero
+cvlt.recog.count[is.na(cvlt.recog.count)] <- 0
+
+cvlt.recog.count$fp_total<-apply(cvlt.recog.count
+                                        [c("fp_nonshared",
+                                          "fp_shared_h", 
+                                          "fp_shared_l", 
+                                          "fp_neither_p",
+                                          "fp_neither_n")], 1, 
+                                 sum, na.rm=T)
+
+#to compute dee-prime, make the following adjustment: 
+#recode sensitivity = 16 --> 15.5
+#recode specificity = 0  --> 0.5
+
+cvlt.recog.count$hit_adj<- rec(cvlt.recog.count$hit,
+                               rec= "16=15.5; else=copy")
+
+cvlt.recog.count$fp_tot_adj<- rec(cvlt.recog.count$fp_total,
+                               rec= "0=0.5; else=copy")
+
+#total recognition discriminability, which is the ability to endorse the 16 target items from list A and reject the 32 distractors
+cvlt.recog.count$total_recog_disc<- round(qnorm(cvlt.recog.count$hit_adj/16)-qnorm(cvlt.recog.count$fp_tot_adj/32),1)
+
+#source recognition discriminability, which is the abilty to endorse the 16 target items from list A and reject those 16 distractors that comprise list B. (This includes BS and BN)
+
+cvlt.recog.count$fp_shared_t<-apply(cvlt.recog.count
+                                        [c("fp_shared_h", 
+                                          "fp_shared_l")], 1, 
+                                 sum, na.rm=T)
+
+
+cvlt.recog.count$fp_source<-apply(cvlt.recog.count
+                                        [c("fp_shared_h", 
+                                          "fp_shared_l",
+                                          "fp_nonshared")], 1, 
+                                 sum, na.rm=T)
+
+cvlt.recog.count$fp_source_adj<- rec(cvlt.recog.count$fp_source,
+                               rec= "0=0.5; else=copy")
+
+cvlt.recog.count$source_recog_disc<- round(qnorm(cvlt.recog.count$hit_adj/16)-qnorm(cvlt.recog.count$fp_source_adj/16),1)
+
+#semantic recognition discriminability, which is the ability to enorse the 16 target items and reject those 16 distractors that are semantically related to the categories on List A (NP + BS)
+
+cvlt.recog.count$fp_semantic<-apply(cvlt.recog.count
+                                        [c("fp_shared_t", 
+                                          "fp_neither_p")], 1, 
+                                 sum, na.rm=T)
+
+cvlt.recog.count$fp_semantic_adj<- rec(cvlt.recog.count$fp_semantic,
+                               rec= "0=0.5; else=copy")
+
+cvlt.recog.count$semantic_recog_disc<- round(qnorm(cvlt.recog.count$hit_adj/16)-qnorm(cvlt.recog.count$fp_semantic_adj/16),1)
+
+#novel recognition discriminability, which is the ability to endorse the 16 target items and reject those 16 distractors that are not found on List B (UN+NP)
+
+cvlt.recog.count$fp_novel<-apply(cvlt.recog.count
+                                        [c("fp_neither_n", 
+                                          "fp_neither_p")], 1, 
+                                 sum, na.rm=T)
+
+cvlt.recog.count$fp_novel_adj<- rec(cvlt.recog.count$fp_novel,
+                               rec= "0=0.5; else=copy")
+
+cvlt.recog.count$novel_recog_disc<- round(qnorm(cvlt.recog.count$hit_adj/16)-qnorm(cvlt.recog.count$fp_novel_adj/16),1)
+
+
+#response bias ("c")
+cvlt.recog.count$resp_bias<- round((-0.5)*(qnorm(cvlt.recog.count$hit_adj/16)+qnorm(cvlt.recog.count$fp_tot_adj/32)),1)
+
+#note: negative raw scores signaling a 'yes' response bias and positive raw score reflecting a 'no' response bias. It can range form a raw score of -2.01 (strong yes response bias in which the examinee endorses all 16 target items and 32 distractors) to a raw score of -2.01 (indicating a strong 'no' response bias in which the examinee rejects all 16 target items and 32 distractors). 
+
+
+#food-specific (not listed in the manual)
+
+cvlt.recog.count$fp_shared_h_adj<- rec(cvlt.recog.count$fp_shared_h,
+                               rec= "0=0.5; 4=3.5; else=copy")
+cvlt.recog.count$fp_shared_l_adj<- rec(cvlt.recog.count$fp_shared_l,
+                               rec= "0=0.5; 4=3.5; else=copy")
+cvlt.recog.count$fp_shared_t_adj<- rec(cvlt.recog.count$fp_shared_t,
+                               rec= "0=0.5; 4=3.5; else=copy")
+cvlt.recog.count$fp_nonshared_adj<- rec(cvlt.recog.count$fp_nonshared,
+                               rec= "0=0.5; 4=3.5; else=copy")
+
+cvlt.recog.count$snack_recog_disc<- round(qnorm(cvlt.recog.count$hit_adj/16)-qnorm(cvlt.recog.count$fp_shared_h_adj/4),1)
+
+cvlt.recog.count$veg_recog_disc<- round(qnorm(cvlt.recog.count$hit_adj/16)-qnorm(cvlt.recog.count$fp_shared_l_adj/4),1)
+
+cvlt.recog.count$food_recog_disc<- round(qnorm(cvlt.recog.count$hit_adj/16)-qnorm(cvlt.recog.count$fp_shared_t_adj/8),1)
+
+cvlt.recog.count$nonfood_recog_disc<- round(qnorm(cvlt.recog.count$hit_adj/16)-qnorm(cvlt.recog.count$fp_nonshared_adj/8),1)
+
+psych::describe(cvlt.recog.count)
+
+
+####subset
+cvlt.recog.count2<-subset(cvlt.recog.count[c("ID", "hit", "fp_nonshared", "fp_shared_h", "fp_shared_l", "fp_neither_p", "fp_neither_n", "fp_total", "fp_shared_t", "resp_bias", "total_recog_disc", "source_recog_disc", "semantic_recog_disc", "novel_recog_disc", "snack_recog_disc", "veg_recog_disc", "food_recog_disc", "nonfood_recog_disc")])
+
+
+
+#cvlt.recog.count2[is.na(cvlt.recog.count2)] <- 0
+psych::describe(cvlt.recog.count2)
+```
+
+Computation for A index
+```{r}
+A <-function(h,f)
+{
+  if(f<=.5 & h>=.5)
+  {
+    a <- .75 + (h-f)/4 - f*(1-h)
+  } else if(f<=h & h<=.5)
+  {
+    a <- .75 + (h-f)/4 - f/(4*h)
+  } else {
+    a <- .75 + (h-f)/4 - (1-h)/(4 * (1-f))
+  }
+  return(a)
+}
+
+cvlt.recog.count$hr<- cvlt.recog.count$hit/16
+cvlt.recog.count$fpr<- cvlt.recog.count$fp_total/32 #total
+
+cvlt.recog.count$fpr_source<-cvlt.recog.count$fp_source/16
+cvlt.recog.count$fpr_h<-cvlt.recog.count$fp_shared_h/4
+cvlt.recog.count$fpr_l<-cvlt.recog.count$fp_shared_l/4
+cvlt.recog.count$fpr_food<-cvlt.recog.count$fp_shared_t/8
+cvlt.recog.count$fpr_nonfood<-cvlt.recog.count$fp_nonshared/8
+
+#a index
+cvlt.recog.count$a_index<- A(cvlt.recog.count$hr,cvlt.recog.count$fpr)
+
+cvlt.recog.count$a_index_source<- A(cvlt.recog.count$hr,cvlt.recog.count$fpr_source)
+cvlt.recog.count$a_index_h<- A(cvlt.recog.count$hr,cvlt.recog.count$fpr_h)
+cvlt.recog.count$a_index_l<- A(cvlt.recog.count$hr,cvlt.recog.count$fpr_l)
+cvlt.recog.count$a_index_food<- A(cvlt.recog.count$hr,cvlt.recog.count$fpr_food)
+cvlt.recog.count$a_index_nonfood<- A(cvlt.recog.count$hr,cvlt.recog.count$fpr_nonfood)
+```
+
+```{r}
+b <- function(h,f)
+{
+  if(f<=.5 & h>=.5)
+  {
+    b <-(5-4*h)/(1+4*f)
+  } else if(f<=h & h<=.5)
+  {
+    b <-(h^2+h)/(h^2+f)
+  } else {
+    b <- ((1-f)^2 + (1-h))/((1-f)^2 + (1-f))
+  }
+  return(b)
+}
+
+cvlt.recog.count$b_index<- b(cvlt.recog.count$hr,cvlt.recog.count$fpr)
+
+write.csv(cvlt.recog.count, file="cvlt_recog_hw.csv", row.names = F)
+
+```
+
+
+```{r}
+#library(psycho)
+
+
+indices_total <- psycho::dprime(n_hit= cvlt.recog.count$hit, 
+                          n_fa= cvlt.recog.count$fp_total, 
+                          n_miss= cvlt.recog.count$miss, 
+                          n_cr= cvlt.recog.count$correct_rejection, 
+                          n_targets = 16,
+                          n_distractors=32, 
+                          adjusted = T)
+
+df <- cbind(cvlt.recog.count, indices_total)
+
+df.2<- subset(df[c("ID", "dprime","beta", "aprime", "c")])
+names(df.2)[1]<-"ID"
+names(df.2)[2]<-"dprime_total"
+names(df.2)[3]<-"beta_total"
+names(df.2)[4]<-"aprime_total"
+names(df.2)[5]<-"c_total"
+
+#food
+indices_food <- psycho::dprime(n_hit= cvlt.recog.count$hit, 
+                          n_fa= cvlt.recog.count$fp_shared_t, 
+                          n_miss= cvlt.recog.count$miss, 
+                          n_cr= cvlt.recog.count$correct_rejection, 
+                          n_targets = 16,
+                          n_distractors=8, 
+                          adjusted = T)
+
+df_food <- cbind(cvlt.recog.count, indices_food)
+df.3<- subset(df_food[c("ID", "dprime","beta", "aprime", "c")])
+
+names(df.3)[1]<-"ID"
+names(df.3)[2]<-"dprime_food"
+names(df.3)[3]<-"beta_food"
+names(df.3)[4]<-"aprime_food"
+names(df.3)[5]<-"c_food"
+
+df.r<- merge(df.2, df.3, by="ID")
+
+#
+#non_food
+indices_nonfood <- psycho::dprime(n_hit= cvlt.recog.count$hit, 
+                          n_fa= cvlt.recog.count$fp_nonshared, 
+                          n_miss= cvlt.recog.count$miss, 
+                          n_cr= cvlt.recog.count$correct_rejection, 
+                          n_targets = 16,
+                          n_distractors=8, 
+                          adjusted = T)
+
+df_nonfood <- cbind(cvlt.recog.count, indices_nonfood)
+df.4<- subset(df_nonfood[c("ID", "dprime","beta", "aprime","c")])
+
+names(df.4)[1]<-"ID"
+names(df.4)[2]<-"dprime_nonfood"
+names(df.4)[3]<-"beta_nonfood"
+names(df.4)[4]<-"aprime_nonfood"
+names(df.4)[5]<-"c_nonfood"
+
+df.r2<- merge(df.r, df.4, by="ID")
+
+#snack only
+indices_snack <- psycho::dprime(n_hit= cvlt.recog.count$hit, 
+                          n_fa= cvlt.recog.count$fp_shared_h, 
+                          n_miss= cvlt.recog.count$miss, 
+                          n_cr= cvlt.recog.count$correct_rejection, 
+                          n_targets = 16,
+                          n_distractors=4, 
+                          adjusted = T)
+
+df_snack <- cbind(cvlt.recog.count, indices_snack)
+df.5<- subset(df_snack[c("ID", "dprime","beta", "aprime","c")])
+
+names(df.5)[1]<-"ID"
+names(df.5)[2]<-"dprime_snack"
+names(df.5)[3]<-"beta_snack"
+names(df.5)[4]<-"aprime_snack"
+names(df.5)[5]<-"c_snack"
+
+df.r3<- merge(df.r2, df.5, by="ID")
+
+#veg only
+indices_veg <- psycho::dprime(n_hit= cvlt.recog.count$hit, 
+                          n_fa= cvlt.recog.count$fp_shared_l, 
+                          n_miss= cvlt.recog.count$miss, 
+                          n_cr= cvlt.recog.count$correct_rejection, 
+                          n_targets = 16,
+                          n_distractors=4, 
+                          adjusted = T)
+
+df_veg <- cbind(cvlt.recog.count, indices_veg)
+df.6<- subset(df_veg[c("ID", "dprime","beta", "aprime", "c")])
+
+names(df.6)[1]<-"ID"
+names(df.6)[2]<-"dprime_veg"
+names(df.6)[3]<-"beta_veg"
+names(df.6)[4]<-"aprime_veg"
+names(df.6)[5]<-"c_veg"
+
+df.r4<- merge(df.r3, df.6, by="ID")
+
+write.csv(df.r4, file="cvlt_recog_hw_112420_psycho.csv", row.names = F)
+
+```
+
+
+
+```{r recognition hits}
+#merge
+cvlt.listAB_sd_ld_recog<- merge(cvlt.ld.fr.cue, cvlt.recog.count2, by="ID") #61 variables
+
+#save file 
+#write.csv(cvlt.listAB_sd_ld_recog, file="fit_cvlt_count_listAB_sd_ld_recog.csv", row.names = F)
+
+```
+
+
+
+
+
+```{r}
+cvlt.count_intrusion2<-subset(cvlt.listAB_sd_ld_recog[c("ID", 
+                                           "trial1_intrusion",
+                                           "trial2_intrusion",
+                                           "trial3_intrusion",
+                                           "trial4_intrusion", 
+                                           "trial5_intrusion",
+                                           "listB_intrusion",
+                                           "sdfr_intrusion",
+                                           "ldfr_intrusion",
+                                           "sd.cue.cfh_intrusion",
+                                           "sd.cue.cfl_intrusion",
+                                           "sd.cue.ct_intrusion",
+                                           "sd.cue.cn_intrusion",
+                                           "ld.cue.cfh_intrusion", 
+                                           "ld.cue.cfl_intrusion",
+                                           "ld.cue.cn_intrusion",
+                                           "ld.cue.ct_intrusion")])
+```
+
+
+### SCORING ###
+
+```{r}
+#create an empty df with ID only
+cvlt.scored.temp.1<-subset(cvlt.listAB_sd_ld_recog[c("ID")])
+#14 obs.
+
+#total number of correct responses:
+
+cvlt.scored.temp.1$trial_1_free_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("trial1_cfh", 
+                                          "trial1_cfl", 
+                                          "trial1_cn",
+                                          "trial1_ct")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$trial_2_free_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("trial2_cfh", 
+                                          "trial2_cfl", 
+                                          "trial2_cn", 
+                                          "trial2_ct")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$trial_3_free_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("trial3_cfh", 
+                                          "trial3_cfl", 
+                                          "trial3_cn", 
+                                          "trial3_ct")], 1, sum, na.rm=T)
+
+
+cvlt.scored.temp.1$trial_4_free_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("trial4_cfh", 
+                                          "trial4_cfl", 
+                                          "trial4_cn", 
+                                          "trial4_ct")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$trial_5_free_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("trial5_cfh", 
+                                          "trial5_cfl", 
+                                          "trial5_cn", 
+                                          "trial5_ct")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$t1_5_free_correct<-apply(cvlt.scored.temp.1
+                                        [c("trial_1_free_correct",
+                                           "trial_2_free_correct",
+                                           "trial_3_free_correct",
+                                           "trial_4_free_correct",
+                                           "trial_5_free_correct")], 1, sum, na.rm=T)
+
+
+
+#listB
+cvlt.scored.temp.1$listb_total_free_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("listB_cfh", 
+                                          "listB_cfl", 
+                                          "listB_cn",
+                                          "listB_cm")], 1, sum, na.rm=T)
+
+skimr::skim(cvlt.scored.temp.1$listb_total_free_correct)#min: 0; max: 11
+
+#short-delay free 
+
+cvlt.scored.temp.1$sd_free_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("sdfr_cfh", 
+                                          "sdfr_cfl", 
+                                          "sdfr_cn",
+                                          "sdfr_ct")], 1, sum, na.rm=T)
+
+skimr::skim(cvlt.scored.temp.1$sd_free_correct)#min: 0; max: 16
+
+#short-delay cue
+
+cvlt.scored.temp.1$sd_cue_cfh_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("sd.cue.cfh")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$sd_cue_cfl_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("sd.cue.cfl")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$sd_cue_cn_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("sd.cue.cn")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$sd_cue_ct_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("sd.cue.ct")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$sd_cue_total_correct<-apply(cvlt.scored.temp.1
+                                        [c("sd_cue_cfl_correct",
+                                           "sd_cue_cfh_correct",
+                                           "sd_cue_cn_correct",
+                                          "sd_cue_ct_correct")], 1, sum, na.rm=T)
+
+#long-delay free
+
+cvlt.scored.temp.1$ld_free_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("ld_cfh", 
+                                          "ldfr_cfl", 
+                                          "ldfr_cn",
+                                          "ldfr_ct")], 1, sum, na.rm=T)
+
+#long-delay cue
+cvlt.scored.temp.1$ld_cue_veg_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("ld.cue.cfl")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$ld_cue_snack_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("ld.cue.cfh"
+                                          )], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$ld_cue_neutral_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("ld.cue.cn")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$ld_cue_travel_correct<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("ld.cue.ct")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$ld_cue_total_correct<-apply(cvlt.scored.temp.1
+                                        [c("ld_cue_veg_correct",
+                                           "ld_cue_snack_correct",
+                                           "ld_cue_neutral_correct",
+                                          "ld_cue_travel_correct")], 1, sum, na.rm=T)
+
+#free-recall intrusions
+#cvlt.listAB_sd_ld_recog$sdfr_intrusion
+
+cvlt.scored.temp.1$imm_recall_intrusion<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("trial1_intrusion",
+                                           "trial2_intrusion",
+                                           "trial3_intrusion",
+                                           "trial4_intrusion", 
+                                           "trial5_intrusion")], 1, sum, na.rm=T)
+
+#imm recall discrim for each trial 1
+cvlt.listAB_sd_ld_recog$trial1_intrusion_adj<- rec(cvlt.listAB_sd_ld_recog$trial1_intrusion,
+                               rec= "0=0.5; else=copy")
+
+cvlt.scored.temp.1$trial1_disc<- round(qnorm(cvlt.scored.temp.1$trial_1_free_correct/16)-qnorm(cvlt.listAB_sd_ld_recog$trial1_intrusion_adj/16),1)
+
+#imm recall discrim for each trial 2
+cvlt.listAB_sd_ld_recog$trial2_intrusion_adj<- rec(cvlt.listAB_sd_ld_recog$trial2_intrusion,
+                               rec= "0=0.5; else=copy")
+
+cvlt.scored.temp.1$trial2_disc<- round(qnorm(cvlt.scored.temp.1$trial_2_free_correct/16)-qnorm(cvlt.listAB_sd_ld_recog$trial2_intrusion_adj/16),1)
+
+#imm recall discrim for each trial 3
+cvlt.listAB_sd_ld_recog$trial3_intrusion_adj<- rec(cvlt.listAB_sd_ld_recog$trial3_intrusion,
+                               rec= "0=0.5; else=copy")
+
+cvlt.scored.temp.1$trial_3_free_correct_adj<-
+  rec(cvlt.scored.temp.1$trial_3_free_correct,
+      rec="16=15.5; else=copy")
+
+cvlt.scored.temp.1$trial3_disc<- round(qnorm(cvlt.scored.temp.1$trial_3_free_correct_adj/16)-qnorm(cvlt.listAB_sd_ld_recog$trial3_intrusion_adj/16),1)
+
+#imm recall discrim for each trial 4
+cvlt.listAB_sd_ld_recog$trial4_intrusion_adj<- rec(cvlt.listAB_sd_ld_recog$trial4_intrusion,
+                               rec= "0=0.5; else=copy")
+
+cvlt.scored.temp.1$trial_4_free_correct_adj<-
+  rec(cvlt.scored.temp.1$trial_4_free_correct,
+      rec="16=15.5; else=copy")
+
+cvlt.scored.temp.1$trial4_disc<- round(qnorm(cvlt.scored.temp.1$trial_4_free_correct_adj/16)-qnorm(cvlt.listAB_sd_ld_recog$trial4_intrusion_adj/16),1)
+
+#imm recall discrim for each trial 5
+cvlt.listAB_sd_ld_recog$trial5_intrusion_adj<- rec(cvlt.listAB_sd_ld_recog$trial5_intrusion,
+                               rec= "0=0.5; else=copy")
+
+cvlt.scored.temp.1$trial_5_free_correct_adj<-
+  rec(cvlt.scored.temp.1$trial_5_free_correct,
+      rec="16=15.5; else=copy")
+
+cvlt.scored.temp.1$trial5_disc<- round(qnorm(cvlt.scored.temp.1$trial_5_free_correct_adj/16)-qnorm(cvlt.listAB_sd_ld_recog$trial5_intrusion_adj/16),1)
+
+cvlt.scored.temp.1$t1_5_disc<-apply(cvlt.scored.temp.1
+                                        [c("trial1_disc", 
+                                           "trial2_disc", 
+                                           "trial3_disc",
+                                           "trial4_disc",
+                                           "trial5_disc"
+                                          )], 1, mean, na.rm=T)
+
+cvlt.scored.temp.1$t1_5_disc<-round(cvlt.scored.temp.1$t1_5_disc, 1)
+  
+#imm recall discrim for list B
+cvlt.listAB_sd_ld_recog$listB_intrusion_adj<- rec(cvlt.listAB_sd_ld_recog$listB_intrusion,
+                               rec= "0=0.5; else=copy")
+
+cvlt.scored.temp.1$listB_free_correct_adj<-
+  rec(cvlt.scored.temp.1$listb_total_free_correct,
+      rec="16=15.5; 0=0.5; else=copy")
+
+cvlt.scored.temp.1$listB_disc<- round(qnorm(cvlt.scored.temp.1$listB_free_correct_adj/16)-qnorm(cvlt.listAB_sd_ld_recog$listB_intrusion_adj/16),1)
+
+#discrim for short-delay free
+cvlt.listAB_sd_ld_recog$sd_free_intrusion_adj<- rec(cvlt.listAB_sd_ld_recog$sdfr_intrusion,
+                               rec= "0=0.5; else=copy")
+
+cvlt.scored.temp.1$sd_free_correct_adj<-
+  rec(cvlt.scored.temp.1$sd_free_correct,
+      rec="16=15.5; else=copy")
+
+cvlt.scored.temp.1$sd_free_disc<- round(qnorm(cvlt.scored.temp.1$sd_free_correct_adj/16)-qnorm(cvlt.listAB_sd_ld_recog$sd_free_intrusion_adj/16),1)
+
+#discrim for long-delay free
+cvlt.listAB_sd_ld_recog$ld_free_intrusion_adj<- rec(cvlt.listAB_sd_ld_recog$ldfr_intrusion,
+                               rec= "0=0.5; else=copy")
+
+cvlt.scored.temp.1$ld_free_correct_adj<-
+  rec(cvlt.scored.temp.1$ld_free_correct,
+      rec="16=15.5; else=copy")
+
+cvlt.scored.temp.1$ld_free_disc<- round(qnorm(cvlt.scored.temp.1$ld_free_correct_adj/16)-qnorm(cvlt.listAB_sd_ld_recog$ld_free_intrusion_adj/16),1)
+
+#discrim for short-delay cued
+cvlt.scored.temp.1$sd_cued_intrusion<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("sd.cue.cfh_intrusion",
+                                           "sd.cue.cfl_intrusion",
+                                           "sd.cue.ct_intrusion",
+                                           "sd.cue.cn_intrusion")], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$sd_cued_intrusion_adj<- rec(cvlt.scored.temp.1$sd_cued_intrusion,
+                               rec= "0=0.5; else=copy")
+
+cvlt.scored.temp.1$sd_cued_correct_adj<-
+  rec(cvlt.scored.temp.1$sd_cue_total_correct,
+      rec="16=15.5; else=copy")
+
+cvlt.scored.temp.1$sd_cued_disc<- round(qnorm(cvlt.scored.temp.1$sd_cued_correct_adj/16)-qnorm(cvlt.scored.temp.1$sd_cued_intrusion_adj/16),1)
+
+#discrim for short-delay cued
+cvlt.scored.temp.1$ld_cued_intrusion<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("ld.cue.cfh_intrusion", 
+                                           "ld.cue.cfl_intrusion",
+                                           "ld.cue.cn_intrusion",
+                                           "ld.cue.ct_intrusion"
+                                           )], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$ld_cued_intrusion_adj<- rec(cvlt.scored.temp.1$ld_cued_intrusion,
+                               rec= "0=0.5; else=copy")
+
+cvlt.scored.temp.1$ld_cued_correct_adj<-
+  rec(cvlt.scored.temp.1$ld_cue_total_correct,
+      rec="16=15.5; else=copy")
+
+cvlt.scored.temp.1$ld_cued_disc<- round(qnorm(cvlt.scored.temp.1$ld_cued_correct_adj/16)-qnorm(cvlt.scored.temp.1$ld_cued_intrusion_adj/16),1)
+
+#### discriminability summary
+#free recall discriminability
+cvlt.scored.temp.1$free_recall_disc<-apply(cvlt.scored.temp.1
+                                        [c("trial1_disc",
+                                           "trial2_disc",
+                                           "trial3_disc",
+                                           "trial4_disc", 
+                                           "trial5_disc",
+                                           "listB_disc",
+                                           "sd_free_disc",
+                                           "ld_free_disc")], 1, 
+                                        mean, na.rm=T)
+
+cvlt.scored.temp.1$free_recall_disc<-round(cvlt.scored.temp.1$free_recall_disc, 1)
+
+#delayed recall discriminability
+cvlt.scored.temp.1$delayed_recall_disc<-apply(cvlt.scored.temp.1
+                                        [c("sd_free_disc",
+                                           "sd_cued_disc",
+                                           "ld_free_disc",
+                                           "ld_cued_disc")], 1, 
+                                        mean, na.rm=T)
+
+cvlt.scored.temp.1$delayed_recall_disc<-round(cvlt.scored.temp.1$delayed_recall_disc, 1)
+
+#cued recall discriminability
+cvlt.scored.temp.1$cued_recall_disc<-apply(cvlt.scored.temp.1
+                                        [c("sd_cued_disc",
+                                           "ld_cued_disc")], 1, 
+                                        mean, na.rm=T)
+
+cvlt.scored.temp.1$cued_recall_disc<-round(cvlt.scored.temp.1$cued_recall_disc, 1)
+
+#total recall discriminability
+cvlt.scored.temp.1$total_recall_disc<-apply(cvlt.scored.temp.1
+                                        [c("trial1_disc",
+                                           "trial2_disc",
+                                           "trial3_disc",
+                                           "trial4_disc", 
+                                           "trial5_disc",
+                                           "listB_disc",
+                                           "sd_free_disc",
+                                           "sd_cued_disc",
+                                           "ld_free_disc",
+                                           "ld_cued_disc")], 1, 
+                                        mean, na.rm=T)
+
+cvlt.scored.temp.1$total_recall_disc<-round(cvlt.scored.temp.1$total_recall_disc, 1)
+
+
+
+
+
+#all free-recall intrusion
+
+cvlt.scored.temp.1$free_total_intrusion<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("trial1_intrusion",
+                                           "trial2_intrusion",
+                                           "trial3_intrusion",
+                                           "trial4_intrusion", 
+                                           "trial5_intrusion",
+                                           "listB_intrusion",
+                                           "sdfr_intrusion",
+                                           "ldfr_intrusion")], 1, sum, na.rm=T)
+
+skimr::skim(cvlt.scored.temp.1$free_total_intrusion) #min: 0 ; #max: 18
+
+#cued intrusion
+#cvlt.listAB_sd_ld_recog$int
+
+cvlt.scored.temp.1$cued_total_intrusion<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("sd.cue.cfh_intrusion",
+                                           "sd.cue.cfl_intrusion",
+                                           "sd.cue.ct_intrusion",
+                                           "sd.cue.cn_intrusion",
+                                           "ld.cue.cfh_intrusion", 
+                                           "ld.cue.cfl_intrusion",
+                                           "ld.cue.cn_intrusion",
+                                           "ld.cue.ct_intrusion"
+                                           )], 1, sum, na.rm=T)
+
+#total intrusions
+cvlt.scored.temp.1$tot_intrusion<-apply(cvlt.scored.temp.1
+                                        [c("free_total_intrusion",
+                                           "cued_total_intrusion")], 1, sum, na.rm=T)
+
+#total repetitions
+
+#cvlt.listAB_sd_ld_recog$ld.cue.trv_repeat
+
+cvlt.scored.temp.1$t1_5_imm_repetition<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("trial1_repeat",
+                                           "trial2_repeat",
+                                           "trial3_repeat",
+                                           "trial4_repeat", 
+                                           "trial5_repeat"
+                                           )], 1, sum, na.rm=T)
+#cvlt.listAB_sd_ld_recog$rep
+
+cvlt.scored.temp.1$tot_repetition<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("trial1_repeat",
+                                           "trial2_repeat",
+                                           "trial3_repeat",
+                                           "trial4_repeat", 
+                                           "trial5_repeat",
+                                           "listB_repeat",
+                                           "sdfr_repeat",
+                                           "ldfr_repeat",
+                                           "sd.cue.cfh_repeat",
+                                           "sd.cue.cfl_repeat",
+                                           "sd.cue.cn_repeat",
+                                           "sd.cue.ct_repeat",
+                                          "ld.cue.cn_repeat",
+                                          "ld.cue.cfh_repeat",
+                                          "ld.cue.cfl_repeat",
+                                          "ld.cue.ct_repeat"
+                                           )], 1, sum, na.rm=T)
+
+skimr::skim(cvlt.scored.temp.1$tot_repetition)#min: 0; max: 25
+
+#yes/no recognition hits (maximum=16)
+cvlt.scored.temp.1$recog_hits<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("hit")], 1, sum, na.rm=T)
+
+skimr::skim(cvlt.scored.temp.1$recog_hits)#maximum 16
+
+cvlt.scored.temp.1$recog_accuracy<-(cvlt.scored.temp.1$recog_hits/16)*100
+
+#yes/no false positive recognition hits 
+cvlt.scored.temp.1$false_positive<-apply(cvlt.listAB_sd_ld_recog
+                                        [c("fp_total")], 1, sum, na.rm=T)
+
+skimr::skim(cvlt.scored.temp.1$false_positive) #max 32; must remove one individual
+```
+
+
+```{r}
+#correct short-delay cued
+cvlt.scored.temp.1$sd_cue_cfh_correct_adj<-
+  sjmisc::rec(cvlt.scored.temp.1$sd_cue_cfh_correct,
+      rec="0=0.5; 4=3.5; else=copy")
+
+cvlt.scored.temp.1$sd_cue_cfl_correct_adj<-
+  sjmisc::rec(cvlt.scored.temp.1$sd_cue_cfl_correct,
+      rec="0=0.5; 4=3.5; else=copy")
+
+cvlt.scored.temp.1$sd_cue_neu_correct<-apply(cvlt.scored.temp.1
+                                        [c("sd_cue_cn_correct",
+                                           "sd_cue_ct_correct"
+                                           )], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$sd_cue_neu_correct_adj<-
+  sjmisc::rec(cvlt.scored.temp.1$sd_cue_neu_correct,
+      rec="0=0.5; 8=7.5; else=copy")
+
+# intrusion adjustment
+cvlt.scored.temp.1$sd_cue_cfh_intrusion_adj<-
+  sjmisc::rec(cvlt.ld.fr.cue$sd.cue.cfh_intrusion,
+      rec="0=0.5; 4=3.5; else=copy")
+
+cvlt.scored.temp.1$sd_cue_cfl_intrusion_adj<-
+  sjmisc::rec(cvlt.ld.fr.cue$sd.cue.cfl_intrusion,
+      rec="0=0.5; 4=3.5; else=copy")
+
+cvlt.scored.temp.1$sd_cue_neu_intrusion<-apply(cvlt.ld.fr.cue
+                                        [c("sd.cue.ct_intrusion",
+                                           "sd.cue.cn_intrusion"
+                                           )], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$sd_cue_neu_intrusion_adj<-
+  sjmisc::rec(cvlt.scored.temp.1$sd_cue_neu_intrusion,
+      rec="0=0.5; 8=7.5; else=copy")
+
+#short-delay cued discriminability
+
+cvlt.scored.temp.1$sd_cue_cfh_disc<- round(qnorm(cvlt.scored.temp.1$sd_cue_cfh_correct_adj/4)-qnorm(cvlt.scored.temp.1$sd_cue_cfh_intrusion_adj/4),1)
+
+cvlt.scored.temp.1$sd_cue_cfl_disc<- round(qnorm(cvlt.scored.temp.1$sd_cue_cfl_correct_adj/4)-qnorm(cvlt.scored.temp.1$sd_cue_cfl_intrusion_adj/4),1)
+
+cvlt.scored.temp.1$sd_cue_neu_disc<- round(qnorm(cvlt.scored.temp.1$sd_cue_neu_correct_adj/8)-qnorm(cvlt.scored.temp.1$sd_cue_neu_intrusion_adj/8),1)
+
+cvlt.scored.cued.1<- subset(cvlt.scored.temp.1[c("ID", "sd_cue_cfh_disc", "sd_cue_cfl_disc", "sd_cue_neu_disc")])
+
+
+###
+
+#correct short-delay cued
+cvlt.scored.temp.1$ld_cue_cfh_correct_adj<-
+  sjmisc::rec(cvlt.scored.temp.1$ld_cue_snack_correct,
+      rec="0=0.5; 4=3.5; else=copy")
+
+cvlt.scored.temp.1$ld_cue_cfl_correct_adj<-
+  sjmisc::rec(cvlt.scored.temp.1$ld_cue_veg_correct,
+      rec="0=0.5; 4=3.5; else=copy")
+
+cvlt.scored.temp.1$ld_cue_neu_correct<-apply(cvlt.scored.temp.1
+                                        [c("ld_cue_neutral_correct",
+                                           "ld_cue_travel_correct"
+                                           )], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$ld_cue_neu_correct_adj<-
+  sjmisc::rec(cvlt.scored.temp.1$ld_cue_neu_correct,
+      rec="0=0.5; 8=7.5; else=copy")
+
+
+# intrusion adjustment
+cvlt.scored.temp.1$ld_cue_cfh_intrusion_adj<-
+  sjmisc::rec(cvlt.ld.fr.cue$ld.cue.cfh_intrusion,
+      rec="0=0.5; 4=3.5; else=copy")
+
+cvlt.scored.temp.1$ld_cue_cfl_intrusion_adj<-
+  sjmisc::rec(cvlt.ld.fr.cue$ld.cue.cfl_intrusion,
+      rec="0=0.5; 4=3.5; else=copy")
+
+cvlt.scored.temp.1$ld_cue_neu_intrusion<-apply(cvlt.ld.fr.cue
+                                        [c("ld.cue.ct_intrusion",
+                                           "ld.cue.cn_intrusion"
+                                           )], 1, sum, na.rm=T)
+
+cvlt.scored.temp.1$ld_cue_neu_intrusion_adj<-
+  sjmisc::rec(cvlt.scored.temp.1$ld_cue_neu_intrusion,
+      rec="0=0.5; 8=7.5; else=copy")
+
+#short-delay cued discriminability
+
+cvlt.scored.temp.1$ld_cue_cfh_disc<- round(qnorm(cvlt.scored.temp.1$ld_cue_cfh_correct_adj/4)-qnorm(cvlt.scored.temp.1$ld_cue_cfh_intrusion_adj/4),1)
+
+cvlt.scored.temp.1$ld_cue_cfl_disc<- round(qnorm(cvlt.scored.temp.1$ld_cue_cfl_correct_adj/4)-qnorm(cvlt.scored.temp.1$ld_cue_cfl_intrusion_adj/4),1)
+
+cvlt.scored.temp.1$ld_cue_neu_disc<- round(qnorm(cvlt.scored.temp.1$ld_cue_neu_correct_adj/8)-qnorm(cvlt.scored.temp.1$ld_cue_neu_intrusion_adj/8),1)
+
+cvlt.scored.cued.2<- subset(cvlt.scored.temp.1[c("ID", "ld_cue_cfh_disc", "ld_cue_cfl_disc", "ld_cue_neu_disc")])
+
+
+#
+cvlt.scored.cued.3<- merge(cvlt.scored.cued.1, cvlt.scored.cued.2, 
+                           by="ID")
+
+#average of delayd recall dprime
+cvlt.scored.cued.3$cued_cfh_disc<-apply(cvlt.scored.cued.3
+                                        [c("sd_cue_cfh_disc",
+                                           "ld_cue_cfh_disc"
+                                           )], 1, mean, na.rm=T)
+
+cvlt.scored.cued.3$cued_cfl_disc<-apply(cvlt.scored.cued.3
+                                        [c("sd_cue_cfl_disc",
+                                           "ld_cue_cfl_disc"
+                                           )], 1, mean, na.rm=T)
+
+cvlt.scored.cued.3$cued_neu_disc<-apply(cvlt.scored.cued.3
+                                        [c("sd_cue_neu_disc",
+                                           "ld_cue_neu_disc"
+                                           )], 1, mean, na.rm=T)
+
+
+psych::describe(cvlt.scored.cued.3)
+
+write.csv(cvlt.scored.cued.3, file="hw_aim1_cued_disc_010621.csv", row.names = F)
+```
+
+
+```{r}
+cvlt.fit.scored<- merge(cvlt.scored.temp.1, cvlt.recog.count2, by="ID")
+
+cvlt.fit.scored2<- merge(cvlt.fit.scored, cvlt.count_intrusion2, by="ID")
+
+```
+
+
+```{r}
+#write.csv(cvlt.fit.scored2, file="hw_cvlt_counts_102720.csv", row.names = F)
+
+
+
+```
