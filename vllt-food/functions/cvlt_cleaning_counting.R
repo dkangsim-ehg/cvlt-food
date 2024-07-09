@@ -240,12 +240,12 @@ clean_score_data <- function(df,
   
   
   #only for immediate recall task where there are trials are repeated 5 times
-  if(outcome_name == "trials1_5"){
+  if(outcome_name == "trials1_5_free"){
     df<- df%>%
       group_by(ID, timepts)%>%
       summarise(across(c(!!sym(correct_col),
                          !!sym(intrusion_col),
-                         !!sym(repetition_col)), 
+                         !!sym(repetition_col)),  #customize this code if you want different columns
                        ~sum(.x, na.rm=T)))%>%
       ungroup()%>%
       write_csv( # save survey results 
