@@ -11,8 +11,10 @@ pacman::p_load(glue, here, tidyverse,
                foreach, future , tictoc)
 
 # setup stage
-# check your working directory (CHEAR/workingfolder/PACIFIC FIT)
-getwd() #if working directory is not properly set up, use the setwd() to set the path
+# ref: https://github.com/jennybc/here_here
+# 'stop using setwd() as it is fragile and hard-wired for one time and place.
+# as soon as you rename or move directories, your function breaks.' 
+# check: https://www.tidyverse.org/blog/2017/12/workflow-vs-script/
 
 cvlt.df<- read_csv(here("input",
   "test_input.csv"))
@@ -162,3 +164,7 @@ parse_by_age_female(data=cvlt_trials1_5_free,
 
 ########################################################################
 # 5. Match by age and gender, then merge rows
+
+# Please refer to the `cvlt_matching_merging.R` for general strategy
+# Interested researchers are encouraged to refer to teh CVLT-II scoring manual
+# California Verbal Learning Test | Second Edition (pearsonassessments.com)
